@@ -1,3 +1,16 @@
-# .gitignore*.log__pycache__/*.pyc*.pyo.DS_Store*.txt*.png*.pickle
+# 忽略日志文件
+*.log
+
+# 忽略 Python 编译文件
+__pycache__/
+*.pyc
+*.pyo
+
+# 忽略通用文件
+*.txt
+*.png
+*.pickle
+
+# 忽略 saved_models 下的所有内容，但保留文件夹本身
 /saved_models/*
 !/saved_models/
