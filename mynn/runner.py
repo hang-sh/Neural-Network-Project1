@@ -67,9 +67,9 @@ class RunnerM():
                 if self.l2_reg is not None:
                     trn_loss += self.l2_reg.forward()
 
-                # self.train_loss.append(trn_loss)
-                # trn_score = self.metric(logits, train_y)
-                # self.train_scores.append(trn_score)
+                self.train_loss.append(trn_loss)
+                trn_score = self.metric(logits, train_y)
+                self.train_scores.append(trn_score)
                 
                 # the loss_fn layer will propagate the gradients.
                 self.loss_fn.backward()
@@ -77,27 +77,27 @@ class RunnerM():
                     self.l2_reg.backward()
 
                 self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
+                # if self.scheduler is not None:
+                    # self.scheduler.step()
 
-                # dev_score, dev_loss = self.evaluate(dev_set)
-                # self.dev_scores.append(dev_score)
-                # self.dev_loss.append(dev_loss)
+                dev_score, dev_loss = self.evaluate(dev_set)
+                self.dev_scores.append(dev_score)
+                self.dev_loss.append(dev_loss)
 
                 if (iteration) % log_iters == 0:
-                    self.train_loss.append(trn_loss)
-                    trn_score = self.metric(logits, train_y)
-                    self.train_scores.append(trn_score)
+                    # self.train_loss.append(trn_loss)
+                    # trn_score = self.metric(logits, train_y)
+                    # self.train_scores.append(trn_score)
                 
-                    dev_score, dev_loss = self.evaluate(dev_set)
-                    self.dev_scores.append(dev_score)
-                    self.dev_loss.append(dev_loss)
+                    # dev_score, dev_loss = self.evaluate(dev_set)
+                    # self.dev_scores.append(dev_score)
+                    # self.dev_loss.append(dev_loss)
                     print(f"epoch: {epoch}, iteration: {iteration}")
                     print(f"[Train] loss: {trn_loss}, score: {trn_score}")
                     print(f"[Dev] loss: {dev_loss}, score: {dev_score}")
 
-            # if self.scheduler is not None:
-                    # self.scheduler.step()
+            if self.scheduler is not None:
+                    self.scheduler.step()
 
             if self.early_stopping:
                 if self.early_stopping.check(dev_score, self.model):

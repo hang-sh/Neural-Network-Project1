@@ -62,7 +62,6 @@ valid_imgs = valid_imgs / valid_imgs.max()
 # combined_images = np.concatenate([train_imgs, augmented_train_imgs], axis=0)
 # combined_labels = np.concatenate([train_labs, augmented_train_labs], axis=0)
 
-
 nHidden = [600, 100]
 lambda_list = [1e-4] * (len(nHidden) + 1)  # L2 regularization 
 linear_model = nn.models.Model_MLP(train_imgs.shape[-1], nHidden, 10, 'ReLU')

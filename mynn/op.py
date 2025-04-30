@@ -74,60 +74,11 @@ def he_initialization(kernel_shape):
     
     return weights
 
-def im2col_indices(x, field_height, field_width, padding=1, stride=1):
-    """
-    将输入图像转换成一个列矩阵，使得卷积操作可以通过简单的矩阵乘法来实现。
-    """
-    # Padding the input matrix
-    p = padding
-    x_padded = np.pad(x, ((0, 0), (0, 0), (p, p), (p, p)), mode='constant')
-
-    k, i, j = get_im2col_indices(x.shape, field_height, field_width, padding, stride)
-
-    cols = x_padded[:, k, i, j]
-    C = x.shape[1]
-    cols = cols.transpose(1, 2, 0).reshape(field_height * field_width * C, -1)
-    return cols
-
-
-def col2im_indices(cols, x_shape, field_height=3, field_width=3, padding=1, stride=1):
-    """将列矩阵转换回原始输入形状"""
-    N, C, H, W = x_shape
-    H_padded, W_padded = H + 2 * padding, W + 2 * padding
-    x_padded = np.zeros((N, C, H_padded, W_padded), dtype=cols.dtype)
-    k, i, j = get_im2col_indices(x_shape, field_height, field_width, padding, stride)
-    cols_reshaped = cols.reshape(C * field_height * field_width, -1, N)
-    cols_reshaped = cols_reshaped.transpose(2, 0, 1)
-    np.add.at(x_padded, (slice(None), k, i, j), cols_reshaped)
-    if padding == 0:
-        return x_padded
-    return x_padded[:, :, padding:-padding, padding:-padding]
-
-
-def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):
-    """ 生成用于 im2col 操作的索引数组 k, i, j"""
-    N, C, H, W = x_shape
-    assert (H + 2 * padding - field_height) % stride == 0
-    assert (W + 2 * padding - field_height) % stride == 0
-    out_height = (H + 2 * padding - field_height) // stride + 1
-    out_width = (W + 2 * padding - field_width) // stride + 1
-
-    i0 = np.repeat(np.arange(field_height), field_width)
-    i0 = np.tile(i0, C)
-    i1 = stride * np.repeat(np.arange(out_height), out_width)
-    j0 = np.tile(np.arange(field_width), field_height * C)
-    j1 = stride * np.tile(np.arange(out_width), out_height)
-    i = i0.reshape(-1, 1) + i1.reshape(1, -1) # 所有窗口中像素的 y 坐标（行号）
-    j = j0.reshape(-1, 1) + j1.reshape(1, -1) # 所有窗口中像素的 x 坐标（列号）
-    k = np.repeat(np.arange(C), field_height * field_width).reshape(-1, 1) # 每个通道重复 field_height*field_width 次
-
-    return (k, i, j)
-
 class conv2D(Layer):
     """
     The 2D convolutional layer. Try to implement it on your own.
     """
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, initialize_method=he_initialization, weight_decay=False, weight_decay_lambda=1e-8):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, initialize_method=he_initialization, weight_decay=False, weight_decay_lambda=1e-8) -> None:
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -139,11 +90,13 @@ class conv2D(Layer):
         
         self.W = initialize_method((out_channels, in_channels, kernel_size, kernel_size))
         self.b = np.zeros((out_channels,))
-        self.params = {'W': self.W, 'b': self.b}
-        self.grads = {'W': None, 'b': None}
-        self.input = None
-    
-    def __call__(self, X):
+        self.params = {'W' : self.W, 'b' : self.b}
+
+        self.grads = {'W' : None, 'b' : None}
+        self.input = None # Record the input for backward process.
+        # pass
+
+    def __call__(self, X) -> np.ndarray:
         return self.forward(X)
     
     def forward(self, X):
@@ -152,41 +105,71 @@ class conv2D(Layer):
         W : [1, out, in, k, k]
         no padding
         """
+        batch_size, _ , H, W = X.shape
         self.input = X
-        n_filters, c_filter, h_filter, w_filter = self.W.shape
-        n_x, c_x, h_x, w_x = X.shape
-        h_out = (h_x - h_filter + 2 * self.padding) // self.stride + 1
-        w_out = (w_x - w_filter + 2 * self.padding) // self.stride + 1
-        # 将输入X转换成列矩阵形式以加速计算
-        self.X_col = im2col_indices(X, h_filter, w_filter, padding=self.padding, stride=self.stride)
-        W_col = self.W.reshape(n_filters, -1)
-
-        out = W_col @ self.X_col + self.b.reshape(-1, 1)
-        out = out.reshape(n_filters, h_out, w_out, n_x)
-        out = out.transpose(3, 0, 1, 2)
+        H_out = (H + 2 * self.padding - self.kernel_size)//self.stride + 1
+        W_out = (W + 2 * self.padding - self.kernel_size)//self.stride + 1
         
-        return out
+        if self.padding > 0:
+            X_pad = np.pad(X, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), 'constant', constant_values=0)
+        else:
+            X_pad = X
+
+        output = np.zeros((batch_size, self.out_channels, H_out, W_out))
+        
+        for idx in range(batch_size):
+            for k in range(self.out_channels):
+                for j in range(H_out):
+                    for i in range(W_out):
+                        w_start = i * self.stride
+                        w_end = w_start + self.kernel_size
+                        h_start = j * self.stride
+                        h_end = h_start + self.kernel_size
+                        X_patch = X_pad[idx, :, h_start:h_end, w_start:w_end] 
+                        output[idx][k][j][i] = np.sum(X_patch * self.params['W'][k]) + self.params['b'][k]                           
+        return output
+        # pass
 
     def backward(self, grads):
         """
         grads : [batch_size, out_channel, new_H, new_W]
         """
-        n_filter, d_filter, h_filter, w_filter = self.W.shape
+        batch_size, _ , H_out, W_out = grads.shape
 
-        db = np.sum(grads, axis=(0, 2, 3))
-        # 重新排列grads，并将其重塑为适合与X_col.T相乘的形式
-        grads_reshaped = grads.transpose(1, 2, 3, 0).reshape(n_filter, -1)
-        dW = grads_reshaped @ self.X_col.T
-        dW = dW.reshape(self.W.shape)
+        dW = np.zeros_like(self.W)
+        db = np.zeros_like(self.b)
+        dX = np.zeros_like(self.input)
 
-        W_reshape = self.W.reshape(n_filter, -1)
-        dX_col = W_reshape.T @ grads_reshaped
-        dX = col2im_indices(dX_col, self.input.shape, h_filter, w_filter, padding=self.padding, stride=self.stride)
+        if self.padding > 0:
+            dX_pad = np.pad(self.input, ((0, 0), (0, 0), (self.padding, self.padding), (self.padding, self.padding)), 'constant', constant_values=0)
+        else:
+            dX_pad = self.input
 
-        self.grads['W'] = dW
-        self.grads['b'] = db
-
-        return dX
+        for idx in range(batch_size):
+            for k in range(self.out_channels):
+                for j in range(H_out):
+                    for i in range(W_out):
+                        w_start = i * self.stride
+                        w_end = w_start + self.kernel_size
+                        h_start = j * self.stride
+                        h_end = h_start + self.kernel_size
+                        
+                        X_patch = dX_pad[idx, :, h_start:h_end, w_start:w_end]
+                        dW[k] += grads[idx][k][j][i] * X_patch
+                        db[k] += grads[idx][k][j][i]
+                        dX_pad[idx, :, h_start:h_end, w_start:w_end] += grads[idx][k][j][i] * self.params['W'][k]
+        
+        if self.padding > 0:
+            dX = dX_pad[:, :, self.padding:-self.padding, self.padding:-self.padding]
+        else:
+            dX = dX_pad
+            
+        self.grads['W'] = dW / batch_size
+        self.grads['b'] = db / batch_size  
+        return dX     
+    
+    def clear_grad(self):
+        self.grads = {'W' : None, 'b' : None}
 
 class BatchNormalization(Layer):
     def __init__(self, momentum=0.9, epsilon=1e-5):
