@@ -11,6 +11,7 @@ __pycache__/
 *.png
 *.pickle
 
-# 忽略 saved_models 下的所有内容，但保留文件夹本身
+# 忽略 saved_models 下的所有文件
 /saved_models/*
-!/saved_models/
+# 不忽略 .gitkeep 文件
+!/saved_models/.gitkeep
