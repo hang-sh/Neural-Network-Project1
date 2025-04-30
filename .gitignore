@@ -1,0 +1,8 @@
+# .gitignore
+*.log__pycache__/
+*.pyc
+*.pyo.DS_Store
+*.txt
+*.png
+*.pickle
+
