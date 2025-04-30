@@ -6,7 +6,7 @@ __pycache__/
 # 忽略通用文件
 *.txt
 *.png
-*.pickle
+/figs/*
 
 # 忽略 saved_models 下的所有文件
 /saved_models/*
