@@ -1,2 +1,3 @@
 # .gitignore*.log__pycache__/*.pyc*.pyo.DS_Store*.txt*.png*.pickle
-
+/saved_models/*
+!/saved_models/
